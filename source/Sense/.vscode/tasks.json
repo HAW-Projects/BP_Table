@@ -1,0 +1,65 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Sense",
+            "type": "shell",
+            "command": "make all -j30 -f Makefile",
+            "options": {
+                "cwd": "${workspaceRoot}/Debug"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Build Sense single core",
+            "type": "shell",
+            "command": "make all -f Makefile",
+            "options": {
+                "cwd": "${workspaceRoot}/Debug"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Clean Sense",
+            "type": "shell",
+            "command": "make -f Makefile clean",
+            "options": {
+                "cwd": "${workspaceRoot}/Debug"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Flash Sense",
+            "type": "shell",
+            "command": "make -f Makefile flash com6",
+            "options": {
+                "cwd": "${workspaceRoot}/Debug"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}

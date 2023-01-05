@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "showDevDebugOutput": true,
+            "cwd": "${workspaceRoot}",
+            "executable": "uFrank/build/uFrank.elf",
+            "name": "Debug uFrank",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "preLaunchTask": "Build uFrank",
+            "device": "stlink",
+            "svdFile": "STM32H7x3.svd",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32h7x.cfg"
+            ]
+        }
+    ]
+}

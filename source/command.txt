@@ -1,0 +1,1 @@
+avrdude -c jtag2updi -P com6 -p t816  -Uflash:w:"C:\Users\Jakob\Documents\GitHub\BP_Table\source\Sense\Sense\Debug\sense.hex":i
