@@ -1,27 +1,6 @@
 #include <atmel_start.h>
 #include <util/delay.h>
 
-///////Protocoll///////
-/*
-if write
-        receive 1 Byte
-                -> command mode
-                    -> command without data
-                        -> execute
-                    -> command with data?
-                        -> set data mode
-                -> data mode
-                    -> check command state
-                        -> write data
-if read
-        send 1 byte (sense status)
-        clear sense line
-
-if stop bit
--> reset all register
-
-*/
-
 typedef enum {
     NONE = 0x00,
     RECALIBRATETOUCH = 0x10,
@@ -77,7 +56,7 @@ void I2C_0_address_handler() {
     I2C_0_send_ack();
 }
 
-void I2C_0_read_handler() { // Master read operation
+void I2C_0_read_handler() {
     I2C_0_write(senseState);
     waitForSenseRead = false;
     sense_trig_set_level(0);
@@ -96,7 +75,7 @@ void touch_config() {
     ptc_seq_node_cfg1[1].node_oversampling = touchFilterLevel;
     ptc_seq_node_cfg1[2].node_oversampling = touchFilterLevel;
 }
-void I2C_0_write_handler() { // Master write handler
+void I2C_0_write_handler() {
 
     // Read
     if (commandState == NEWCOMMAND) {
@@ -144,6 +123,9 @@ void I2C_0_write_handler() { // Master write handler
 
             default: break;
         }
+
+        commandState = NEWCOMMAND;
+
         // end command
     }
 
@@ -160,38 +142,60 @@ void I2C_0_error_handler() {
     sense_trig_set_level(0);
 }
 
-// BP_Table Sense
-// Infrared and Touch Sensing Plate
-
 /*
-Startup:
-read ID
-        init I2C with address
-load last Touch and Infrared calibration from eeprom
-wait for startup signal from I2C
-        say Hello
+BP_Table Sense
+Infrared and Touch SensePlate
+To start the SensePlate you have to send the Config for Touch / IR , set the mode and send a start command.
+The SensePlate will pull down the sense interrupt line to the control IC if a sense change occured. It will wait for
+an read I2C request and response with the current sensing state. So if the Sense line is pulled down
+-> request the Sense data for each SensePlate until the sense line is cleared
 
-Loop:
-Compare IR ADC Level
-                Meassure IR
-        Turn On IR
-        Meassure IR
-                Compare Difference
-Check Touch
+For a clean start trigger a reset via Reset command and wait 100ms for Bootup.
 
-        if detectet (if changed)
-                write detection information in output register
-                set sense line active low
+example communication for IR
+Startup
+- RESET  (for a clean start)
+- wait 100ms
+- SETIRTRESHOLD + value
+- SETIRAVG + value
+- SETIRDELAY + value
+- SETMODEIR
+- START
 
-        if not detectet (if changed)
-                clear ouput register
+example communication fir TOUCH
+Startup
+- RESET  (for a clean start)
+- wait 100ms
+- SETTOUCHDIGITALGAIN + value
+- SETTOUCHANALOGGAIN + value
+- SETTOUCHFILTERLEVEL + value
+- SETMODETOUCH
+- START
 
 
 
+///////Protocol///////
+if write
+        receive 1 Byte
+                -> command mode
+                    -> command without data
+                        -> execute
+                    -> command with data?
+                        -> set data mode
+                -> data mode
+                    -> check command state
+                        -> write data
+                    -> reset mode
 
-///!es geht nur ADC oder TOUCH nicht beides!///
+if read
+        send 1 byte (sense status)
+        clear sense line
+
+if stop bit
+-> reset command state
 
 */
+
 int main(void) {
 
     //// Initializes MCU, drivers and middleware ////
@@ -201,13 +205,13 @@ int main(void) {
 
     sense_trig_set_level(0);
 
-    // read MCU ID
+    // read MCU ID + 1  (I2C Address 0 is reserved for general call)
     address =
         (!A4_get_level() << 4 | !A3_get_level() << 3 | !A2_get_level() << 2 | !A1_get_level() << 1 | !A0_get_level()) +
         1;
 
     // //// I2C ////
-    // set Slabe Address //TODO CHECK I2C Address
+    // set Slabe Address
     TWI0.SADDR = address << TWI_ADDRMASK_gp /* Slave Address: 0x0 */
                  | 0 << TWI_ADDREN_bp;      /* General Call Recognition Enable: disabled */
 
@@ -222,7 +226,7 @@ int main(void) {
     I2C_0_enable();
     I2C_0_open();
 
-    // WAIT FOR START
+    // Wait for start Command
     while (waitForController)
         ;
 
@@ -277,18 +281,18 @@ int main(void) {
                     _delay_ms(1); // wait for 1 ms per loop
                 }
             }
-            // get status
+            // get ir status (average)
             if ((float)(irCounter /= (float)irSamples) >= 0.5) {
                 irStatus = 1;
             }
         }
 
-        //  check state and call controller
+        //  check state change and call controller
         if (senseState != (touchStatus | irStatus)) {
             senseState = touchStatus | irStatus;
             sense_trig_set_level(1);
             waitForSenseRead = true;
-            while (waitForSenseRead == true)
+            while (waitForSenseRead == true) // wait for control read
                 ;
         }
     }

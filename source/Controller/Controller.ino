@@ -5,10 +5,14 @@
 #include <Wire.h>
 
 #define LED_PIN 6
+#define LED_PIN2 5
+
 #define LED_COUNT 60
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip2(LED_COUNT, LED_PIN2, NEO_GRB + NEO_KHZ800);
 
+// I2C Commands
 typedef enum {
   NONE = 0x00,
   RECALIBRATETOUCH = 0x10,
@@ -25,17 +29,10 @@ typedef enum {
   RESET = 0xFB
 } COMMANDTYPE;
 
-// touch config
-typedef enum tag_gain_t {
-  GAIN_1,
-  GAIN_2,
-  GAIN_4,
-  GAIN_8,
-  GAIN_16,
-  GAIN_32
-} gain_t;
+// touch configs
+typedef enum { GAIN_1, GAIN_2, GAIN_4, GAIN_8, GAIN_16, GAIN_32 } touchGain;
 
-typedef enum tag_filter_level_t {
+typedef enum {
   FILTER_LEVEL_1,
   FILTER_LEVEL_2,
   FILTER_LEVEL_4,
@@ -43,129 +40,156 @@ typedef enum tag_filter_level_t {
   FILTER_LEVEL_16,
   FILTER_LEVEL_32,
   FILTER_LEVEL_64
-} filter_level_t;
+} touchFilter;
 
-typedef enum { HEXRESET, HEXCONFIG, HEXFOUND, HEXERROR, HEXREADY } HexState;
-typedef enum { notDetect, detect } HexSenseState;
-typedef enum { HEXMODE_TOUCH, HEXMODE_IR } HexMode;
+// Class for the sens plates
+// Contains the current sense status, can call/config SesnsePlate via I2C
 
-class senseHex {
+typedef enum {
+  SENSERESET,
+  SENSECONFIG,
+  SENSEFOUND,
+  SENSEERROR,
+  SENSEREADY
+} SENSEState;
+typedef enum { notDetect, detect } SenseState;
+typedef enum { SENSEMODE_TOUCH, SENSEMODE_IR } SenseMode;
+
+class sensePlate {
 public:
-  senseHex(uint8_t id, Adafruit_NeoPixel *strip, uint8_t ledStartID) {
+  sensePlate(uint8_t id, TwoWire *pWire, Adafruit_NeoPixel *pStrip,
+             uint8_t ledStartID) {
     this->id = id;
 
     this->address = id + 1;
-    this->strip = strip;
+    this->pStrip = pStrip;
+    this->pWire = pWire;
 
     for (size_t i = 0; i < numLEDs; i++) {
       ledIDs[i] = i + ledStartID;
     }
   }
 
-  void init(HexMode mode) {
+  // Config sensePlate
+  void init(SenseMode mode) {
     find();
     config(mode);
     start();
   }
+
+  // call sensePlate reset
   void reset() {
-    Wire1.beginTransmission(address);
-    Wire1.write(RESET);
-    Wire1.endTransmission();
-    state = HEXRESET;
+    pWire->beginTransmission(address);
+    pWire->write(RESET);
+    pWire->endTransmission();
+    state = SENSERESET;
   };
+
+  // test sensePlate is reachable
   void find() {
     uint8_t error;
 
-    Wire1.beginTransmission(address);
-    Wire1.write(NONE);
-    error = Wire1.endTransmission();
+    pWire->beginTransmission(address);
+    pWire->write(NONE);
+    error = pWire->endTransmission();
 
     if (error != 0) {
-      state = HEXERROR;
-      printInfo("HEX not Found");
+      state = SENSEERROR;
+      printInfo("Sensor not Found");
 
     } else {
-      state = HEXFOUND;
+      printInfo("Sensor Found");
+
+      state = SENSEFOUND;
     }
   }
-  void config(HexMode mode) {
-    if (state == HEXFOUND) {
 
-      if (mode = HEXMODE_IR) { // Config for IR
-        Wire1.beginTransmission(address);
-        Wire1.write(SETIRTRESHOLD);
-        Wire1.write(20);
-        Wire1.endTransmission();
+  // config for IR and Touch
+  void config(SenseMode mode) {
+    if (state == SENSEFOUND) {
 
-        Wire1.beginTransmission(address);
-        Wire1.write(SETIRAVG);
-        Wire1.write(10);
-        Wire1.endTransmission();
+      if (mode == SENSEMODE_IR) { // Config for IR
+        pWire->beginTransmission(address);
+        pWire->write(SETIRTRESHOLD);
+        pWire->write(20);
+        pWire->endTransmission();
 
-        Wire1.beginTransmission(address);
-        Wire1.write(SETIRDELAY);
-        Wire1.write(1);
-        Wire1.endTransmission();
+        pWire->beginTransmission(address);
+        pWire->write(SETIRAVG);
+        pWire->write(10);
+        pWire->endTransmission();
 
-        // Set Mode
-        Wire1.beginTransmission(address);
-        Wire1.write(SETMODEIR);
-        Wire1.endTransmission();
-      }
-
-      else if (mode = HEXMODE_TOUCH) { // Config for TOUCH
-        Wire1.beginTransmission(address);
-        Wire1.write(SETTOUCHDIGITALGAIN);
-        Wire1.write(GAIN_8);
-
-        Wire1.beginTransmission(address);
-        Wire1.write(SETTOUCHANALOGGAIN);
-        Wire1.write(GAIN_4);
-        Wire1.endTransmission();
-
-        Wire1.beginTransmission(address);
-        Wire1.write(SETTOUCHFILTERLEVEL);
-        Wire1.write(FILTER_LEVEL_32);
-        Wire1.endTransmission();
+        pWire->beginTransmission(address);
+        pWire->write(SETIRDELAY);
+        pWire->write(10);
+        pWire->endTransmission();
 
         // Set Mode
-        Wire1.beginTransmission(address);
-        Wire1.write(SETMODETOUCH);
-        Wire1.endTransmission();
+        pWire->beginTransmission(address);
+        pWire->write(SETMODEIR);
+        pWire->endTransmission();
       }
+
+      else if (mode == SENSEMODE_TOUCH) { // Config for TOUCH
+        pWire->beginTransmission(address);
+        pWire->write(SETTOUCHDIGITALGAIN);
+        pWire->write(GAIN_2);
+
+        pWire->beginTransmission(address);
+        pWire->write(SETTOUCHANALOGGAIN);
+        pWire->write(GAIN_2);
+        pWire->endTransmission();
+
+        pWire->beginTransmission(address);
+        pWire->write(SETTOUCHFILTERLEVEL);
+        pWire->write(FILTER_LEVEL_32);
+        pWire->endTransmission();
+
+        // Set Mode
+        pWire->beginTransmission(address);
+        pWire->write(SETMODETOUCH);
+        pWire->endTransmission();
+      }
+      state = SENSECONFIG;
     }
-    state = HEXCONFIG;
   }
+
+  // Start sensing
   void start() {
 
-    if (state == HEXCONFIG) {
+    if (state == SENSECONFIG) {
       // START Sensing
-      Wire1.beginTransmission(address);
-      Wire1.write(START);
-      Wire1.endTransmission();
-      state = HEXREADY;
+      pWire->beginTransmission(address);
+      pWire->write(START);
+      pWire->endTransmission();
+      state = SENSEREADY;
 
       for (uint8_t index = 0; index < numLEDs; index++) {
-        strip->setPixelColor(ledIDs[index], 0xFFFFFF);
+        pStrip->setPixelColor(ledIDs[index], 0xFFFFFF);
         timeCounter = 255; // temp for start animation
       }
 
     } else {
-      printInfo("HEX not Configured");
+      printInfo("Sensor not Configured");
 
       for (uint8_t index = 0; index < numLEDs; index++) {
-        strip->setPixelColor(ledIDs[index], 0xFF0000);
+        pStrip->setPixelColor(ledIDs[index], 0xFF0000);
       }
     }
   }
 
+  // Request current sense status from sensePlate
   void requesetSense() {
+    if (state != SENSEREADY)
+      return;
     uint8_t data;
 
-    Wire1.requestFrom(address, (uint8_t)1, (uint8_t) true);
+    pWire->requestFrom(address, (uint8_t)1, (uint8_t) true);
 
-    data = Wire1.read();
-
+    data = pWire->read();
+    if (senseState != data) {
+      printInfo("State-- changed");
+    }
     if (data > 0) {
       senseState = detect;
     } else {
@@ -173,17 +197,19 @@ public:
     }
   }
 
+  // Print debug Info
   void printInfo(char *message) {
-    Serial.print("HEX ERROR : ");
+    Serial.print("Sensor: ");
     Serial.println(address);
     Serial.print("  - ");
     Serial.println(message);
   }
 
-  void draw() { // simple temporary draw function for the detection
+  // Temporary draw function for the LED on the SensePlate
+  void draw() {
 
     uint32_t color = 0x0;
-    if (state == HEXREADY) { // cheack hex is in ready mode
+    if (state == SENSEREADY) { // cheack SENSE is in ready mode
 
       if (senseState == detect) {
 
@@ -203,37 +229,58 @@ public:
     }
 
     for (uint8_t index = 0; index < numLEDs; index++) {
-      strip->setPixelColor(ledIDs[index], color);
+      pStrip->setPixelColor(ledIDs[index], color);
     }
   }
   uint8_t numLEDs = 6;
   uint8_t ledIDs[6];
 
-  Adafruit_NeoPixel *strip = nullptr;
+  Adafruit_NeoPixel *pStrip = nullptr;
+  TwoWire *pWire = nullptr;
 
   uint8_t address = 0;
   uint8_t id = 0;
 
   uint16_t timeCounter = 0;
 
-  HexState state = HEXRESET;
-  HexSenseState senseState = notDetect;
+  SENSEState state = SENSERESET;
+  SenseState senseState = notDetect;
 };
 
-senseHex Hexagons[10] = {senseHex(0, &strip, 0),  senseHex(1, &strip, 6),
-                         senseHex(2, &strip, 12), senseHex(3, &strip, 18),
-                         senseHex(4, &strip, 24), senseHex(5, &strip, 30),
-                         senseHex(6, &strip, 36), senseHex(7, &strip, 42),
-                         senseHex(8, &strip, 48), senseHex(9, &strip, 54)};
+sensePlate Senseagons1[10] = {
+    sensePlate(0, &Wire1, &strip, 0),  sensePlate(1, &Wire1, &strip, 6),
+    sensePlate(2, &Wire1, &strip, 12), sensePlate(3, &Wire1, &strip, 18),
+    sensePlate(4, &Wire1, &strip, 24), sensePlate(5, &Wire1, &strip, 30),
+    sensePlate(6, &Wire1, &strip, 36), sensePlate(7, &Wire1, &strip, 42),
+    sensePlate(8, &Wire1, &strip, 48), sensePlate(9, &Wire1, &strip, 54)};
+
+sensePlate Senseagons2[10] = {sensePlate(0 + 16, &Wire1, &strip2, 0),
+                              sensePlate(1 + 16, &Wire1, &strip2, 6),
+                              sensePlate(2 + 16, &Wire1, &strip2, 12),
+                              sensePlate(3 + 16, &Wire1, &strip2, 18),
+                              sensePlate(4 + 16, &Wire1, &strip2, 24),
+                              sensePlate(5 + 16, &Wire1, &strip2, 30),
+                              sensePlate(6 + 16, &Wire1, &strip2, 36),
+                              sensePlate(7 + 16, &Wire1, &strip2, 42),
+                              sensePlate(8 + 16, &Wire1, &strip2, 48),
+                              sensePlate(9 + 16, &Wire1, &strip2, 54)};
 
 void setup() {
   // NEOPixel
   strip.begin(); // INITIALIZE NeoPixel strip object
   strip.show();
-  strip.setBrightness(10); // Set brigthness
+  strip.setBrightness(50); // Set brigthness
+
+  strip2.begin(); // INITIALIZE NeoPixel strip object
+  strip2.show();
+  strip2.setBrightness(50); // Set brigthness
 
   // I2C
   Wire1.begin();
+  Wire1.setClock(10000);
+
+  digitalWrite(2, LOW);
+  digitalWrite(3, LOW);
 
   // Serual
   Serial.begin(9600);
@@ -243,40 +290,53 @@ void setup() {
 
   // GPIO
   pinMode(7, INPUT);
+  pinMode(4, INPUT);
 
-  // Config all attiny
-  for (int hexID = 0; hexID < 10; hexID++) {
-    Hexagons[hexID].reset();
+  // Reset all sensePlates
+  for (int SENSEID = 0; SENSEID < 10; SENSEID++) {
+    Senseagons1[SENSEID].reset();
+    Senseagons2[SENSEID].reset();
   }
 
-  delay(100); // wait for reset
+  delay(200); // wait for reset
 
-  for (int hexID = 0; hexID < 10; hexID++) {
-    Hexagons[hexID].init(HEXMODE_IR);
+  // Set sense config and mode
+  for (int SENSEID = 0; SENSEID < 10; SENSEID++) {
+    Senseagons1[SENSEID].init(SENSEMODE_IR);
+    Senseagons2[SENSEID].init(SENSEMODE_IR);
 
     strip.show();
+    strip2.show();
 
-    delay(100);
+    delay(50);
   }
-
-  // Config Done
 }
 
 void loop() {
 
   // Check state
   if (digitalRead(7) == LOW) {
-    for (uint8_t hexID = 0; hexID < 10; hexID++) {
+    for (uint8_t SENSEID = 0; SENSEID < 10; SENSEID++) {
 
-      Hexagons[hexID].requesetSense();
+      Senseagons1[SENSEID].requesetSense();
+    }
+  }
+
+  if (digitalRead(4) == LOW) {
+    for (uint8_t SENSEID = 0; SENSEID < 10; SENSEID++) {
+
+      Senseagons2[SENSEID].requesetSense();
     }
   }
 
   // Draw LEDs
   strip.clear();
+  strip2.clear();
 
-  for (uint8_t hexID = 0; hexID < 10; hexID++) {
-    Hexagons[hexID].draw();
+  for (uint8_t SENSEID = 0; SENSEID < 10; SENSEID++) {
+    Senseagons1[SENSEID].draw();
+    Senseagons2[SENSEID].draw();
   }
   strip.show();
+  strip2.show();
 }
