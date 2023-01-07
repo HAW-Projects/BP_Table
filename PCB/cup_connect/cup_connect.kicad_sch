@@ -818,10 +818,10 @@
   (symbol (lib_id "Device:R") (at 90.805 79.375 180) (unit 1)
     (in_bom yes) (on_board yes) (fields_autoplaced)
     (uuid 4f89e6d3-b4c0-41b0-a20a-c73dae3dbbf4)
-    (property "Reference" "R3" (id 0) (at 93.345 78.1049 0)
+    (property "Reference" "R3" (id 0) (at 92.71 78.1049 0)
       (effects (font (size 1.27 1.27)) (justify right))
     )
-    (property "Value" "1k" (id 1) (at 93.345 80.6449 0)
+    (property "Value" "10k" (id 1) (at 92.71 80.6449 0)
       (effects (font (size 1.27 1.27)) (justify right))
     )
     (property "Footprint" "Resistor_SMD:R_0603_1608Metric" (id 2) (at 92.583 79.375 90)
@@ -1143,7 +1143,7 @@
       (reference "R2") (unit 1) (value "2k2") (footprint "Resistor_SMD:R_0603_1608Metric")
     )
     (path "/4f89e6d3-b4c0-41b0-a20a-c73dae3dbbf4"
-      (reference "R3") (unit 1) (value "1k") (footprint "Resistor_SMD:R_0603_1608Metric")
+      (reference "R3") (unit 1) (value "10k") (footprint "Resistor_SMD:R_0603_1608Metric")
     )
     (path "/18ccab49-4f0a-4a8f-91d1-fbe0ca5b7445"
       (reference "U1") (unit 1) (value "LDO-3.3") (footprint "Package_TO_SOT_SMD:TO-252-2")
